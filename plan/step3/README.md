@@ -12,6 +12,8 @@ The defined resource models from step 2.
 
 Write a validation bash script using `curl` to simulate the user workflow. The script must create the necessary resources by sending POST requests and then verify that the system processes them by checking their `status` fields. Use the provided sample validation script as a reference for formatting. 
 
+Constraint: You must wrap the resource creation `curl` commands with `set +e` and `set -e` to prevent the script from aborting on failure. You must capture the HTTP status code and print the full JSON response if the creation fails to assist with debugging.
+
 ### Context
 
 Fabrica generates standard CRUD endpoints for all defined resources. 
