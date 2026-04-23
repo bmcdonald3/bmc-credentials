@@ -1,9 +1,15 @@
 ## Define Fabrica resources
 
-### What to give
-
-Define what data we need to solve this problem.
-
 ### Step outcome
 
-All resources needed and spec/status fields.
+Resource models split into spec/status fields.
+
+### What to give
+
+Define what data is needed to solve this problem.
+
+### Prompt
+
+...
+
+### Context
