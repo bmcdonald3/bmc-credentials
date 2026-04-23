@@ -21,3 +21,15 @@
 [INFO] Successfully verified event-driven loop for Bmc bmc-22f01183
 [DEBUG] Reconciliation successful for Bmc/bmc-22f01183
 2026/04/23 14:17:59 "GET http://localhost:8080/bmcs/bmc-22f01183 HTTP/1.1" from [::1]:64439 - 200 532B in 622.09µs
+[DEBUG] Processing reconciliation for Bmc/bmc-22f01183 (reason: Event: bmc-credential-rotation.resource.bmc.created)
+[DEBUG] Reconciling Bmc Bmc/bmc-22f01183
+[DEBUG] Reconciliation successful for Bmc/bmc-22f01183
+[DEBUG] Processing reconciliation for Bmc/bmc-22f01183 (reason: Event: bmc-credential-rotation.resource.bmc.created)
+[DEBUG] Reconciling Bmc Bmc/bmc-22f01183
+[DEBUG] Reconciliation successful for Bmc/bmc-22f01183
+[DEBUG] Processing reconciliation for Bmc/bmc-22f01183 (reason: Event: bmc-credential-rotation.resource.bmc.created)
+[DEBUG] Reconciling Bmc Bmc/bmc-22f01183
+[DEBUG] Reconciliation successful for Bmc/bmc-22f01183
+[DEBUG] Processing reconciliation for Bmc/bmc-22f01183 (reason: Event: bmc-credential-rotation.resource.bmc.created)
+[DEBUG] Reconciling Bmc Bmc/bmc-22f01183
+[DEBUG] Reconciliation successful for Bmc/bmc-22f01183
