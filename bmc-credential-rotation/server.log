@@ -1,0 +1,23 @@
+2026/04/23 14:17:49 Starting bmc-credential-rotation server...
+2026/04/23 14:17:49 Database schema migrated successfully
+2026/04/23 14:17:49 Ent storage initialized with sqlite3 database
+2026/04/23 14:17:49 Initializing single event bus...
+2026/04/23 14:17:49 Global event bus started and set.
+2026/04/23 14:17:49 Event system initialized - Lifecycle: true, Conditions: true, Prefix: bmc-credential-rotation.resource
+[INFO] Registered reconciler for Bmc
+[INFO] Starting reconciliation controller with 5 workers
+[INFO] Reconciliation controller started
+2026/04/23 14:17:49 Reconciliation controller started with 5 workers
+[DEBUG] Worker 1 started
+[DEBUG] Worker 0 started
+[DEBUG] Worker 2 started
+[DEBUG] Worker 3 started
+2026/04/23 14:17:49 Server starting on 0.0.0.0:8080
+2026/04/23 14:17:49 Storage: sqlite3 database
+[DEBUG] Worker 4 started
+2026/04/23 14:17:54 "POST http://localhost:8080/bmcs HTTP/1.1" from [::1]:64430 - 201 406B in 4.2044ms
+[DEBUG] Processing reconciliation for Bmc/bmc-22f01183 (reason: Event: bmc-credential-rotation.resource.bmc.created)
+[DEBUG] Reconciling Bmc Bmc/bmc-22f01183
+[INFO] Successfully verified event-driven loop for Bmc bmc-22f01183
+[DEBUG] Reconciliation successful for Bmc/bmc-22f01183
+2026/04/23 14:17:59 "GET http://localhost:8080/bmcs/bmc-22f01183 HTTP/1.1" from [::1]:64439 - 200 532B in 622.09µs
