@@ -10,7 +10,7 @@ Defined go structs from step 2.
 
 ### Prompt
 
-...
+Generate a bash bootstrap script to initialize the Fabrica project. The script must use the `fabrica init` command to create the project with event-driven reconciliation enabled. It must then use `fabrica add resource` for each of our identified resources. Following the resource creation, the script must write our custom Go structs into the generated files in the `apis/` directory, overriding the default types. Finally, the script must run `fabrica generate`. 
 
 ### Context
 

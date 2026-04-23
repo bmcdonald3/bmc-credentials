@@ -14,6 +14,8 @@ Generate the Go code for the reconcilers designed in the previous step. The code
 
 ### Context
 
+The custom logic must be implemented in the safe-to-edit user stub files (pkg/reconcilers/<resource>_reconciler.go). The generated orchestration wrapper handles event ingestion and requeuing.
+
 ```go
 // Example Reconciler Implementation
 func (r *RackReconciler) reconcileRack(ctx context.Context, res *rack.Rack) error {
@@ -37,3 +39,5 @@ func (r *RackReconciler) reconcileRack(ctx context.Context, res *rack.Rack) erro
     return nil
 }
 ```
+
+Return 'nil' to stop the loop, or return an 'error' to trigger an exponential backoff retry.

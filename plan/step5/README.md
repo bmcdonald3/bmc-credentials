@@ -17,3 +17,8 @@ Design the reconciliation logic for the background operations identified in the 
 4. The terminal states applied to the `Status` field upon success or failure.
 
 ### Context
+
+The business logic resides in Fabrica Reconcilers. You must design this logic adhering to these constraints:
+1. Idempotency: The reconciler may be called multiple times for the same event. It must check the 'Status.Phase' first and return immediately if the work is already done.
+2. Progressive Updates: The reconciler should update 'Status.Phase' to intermediate states (e.g., "Provisioning") before starting long-running tasks.
+3. State Storage: Any changes to the resource status must be explicitly saved via the storage client before the function returns.

@@ -14,6 +14,12 @@ Write a validation bash script using `curl` to simulate the user workflow. The s
 
 ### Context
 
+Fabrica generates standard CRUD endpoints for all defined resources. 
+- Create: POST /<resource-name-plural> (Requires "apiVersion", "kind", "metadata.name", and "spec")
+- Read: GET /<resource-name-plural>/<uid>
+- List: GET /<resource-name-plural>
+The background controller will update the resource. The validation script must poll the GET endpoint to check if the 'status.phase' field transitions to the expected terminal state (e.g., 'Ready' or 'Failed').
+
 # Sample validation script structure
 ```bash
 #!/usr/bin/env bash
