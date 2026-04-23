@@ -1,124 +1,61 @@
-#!/bin/bash
-set -e
+#!/usr/bin/env bash
+set -euo pipefail
 
-PROJECT_NAME="fms-bmc"
-MODULE_NAME="github.com/example/fms-bmc"
-GROUP="example.fabrica.dev"
-API_VERSION="v1"
-API_DIR="apis/$GROUP/$API_VERSION"
+BASE_URL="http://localhost:8080"
+PASS=0
+FAIL=0
 
-rm -rf $PROJECT_NAME
+ok()   { echo "[PASS] $1"; ((PASS++)) || true; }
+fail() { echo "[FAIL] $1"; ((FAIL++)) || true; }
 
-fabrica init $PROJECT_NAME --module $MODULE_NAME --storage-type ent --db sqlite --events --events-bus memory --reconcile
+echo "Starting Bmc resource validation..."
 
-cd $PROJECT_NAME
+# Phase 1: Create Resource
+# Submits the desired state manifest to the API server.
+CREATE_RESP=$(curl -sf -X POST "$BASE_URL/bmcs" -H "Content-Type: application/json" -d '{"apiVersion":"fabrica.dev/v1","kind":"Bmc","metadata":{"name":"test-bmc-target"},"spec":{"targetIdentifier":"bmc-chassis-A","targetIp":"10.0.0.55","currentAuth":{"username":"admin","password":"old_password"},"desiredAuth":{"username":"admin","password":"new_password"}}}')
 
-fabrica add resource Bmc
+# Extract UID using python3 to parse the JSON response.
+BMC_UID=$(echo "$CREATE_RESP" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('metadata', {}).get('uid', ''))" 2>/dev/null || echo "")
 
-cat << 'EOF' > $API_DIR/bmc_types.go
-package v1
+if [ -n "$BMC_UID" ]; then
+  ok "Bmc resource created (uid=$BMC_UID)"
+else
+  fail "Bmc resource creation failed"
+  exit 1
+fi
 
-import (
-	"time"
+# Phase 2: Verify Status
+# Poll the GET endpoint to monitor the background controller's progress.
+MAX_RETRIES=10
+SLEEP_INTERVAL=3
+ALIGNED=false
 
-	"github.com/openchami/fabrica/pkg/fabrica"
-)
+echo "Polling Bmc resource status for 'Aligned' state (Max time: 30 seconds)..."
 
-// Bmc represents the complete Kubernetes-style resource.
-type Bmc struct {
-	APIVersion string           `json:"apiVersion" validate:"required"`
-	Kind       string           `json:"kind" validate:"required"`
-	Metadata   fabrica.Metadata `json:"metadata"`
-	Spec       BmcSpec          `json:"spec" validate:"required"`
-	Status     BmcStatus        `json:"status,omitempty"`
-}
+for ((i=1; i<=MAX_RETRIES; i++)); do
+  READ_RESP=$(curl -sf "$BASE_URL/bmcs/$BMC_UID")
+  PHASE=$(echo "$READ_RESP" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('status', {}).get('phase', 'Pending'))" 2>/dev/null || echo "Pending")
 
-// Credentials defines the authentication payload required to connect to the hardware.
-type Credentials struct {
-	Username string `json:"username" validate:"required"`
-	Password string `json:"password" validate:"required"`
-}
+  if [ "$PHASE" == "Aligned" ]; then
+    ALIGNED=true
+    break
+  elif [ "$PHASE" == "Failed" ]; then
+    fail "Bmc reconciliation failed. Status phase transitioned to 'Failed'."
+    exit 1
+  fi
 
-// BmcSpec represents the desired state provided by the user via the API payload.
-type BmcSpec struct {
-	TargetIdentifier string      `json:"targetIdentifier" validate:"required"`
-	TargetIP         string      `json:"targetIp" validate:"required,ip"`
-	CurrentAuth      Credentials `json:"currentAuth" validate:"required"`
-	DesiredAuth      Credentials `json:"desiredAuth" validate:"required"`
-}
+  echo "Attempt $i/$MAX_RETRIES: Current phase is '$PHASE'. Waiting $SLEEP_INTERVAL seconds..."
+  sleep "$SLEEP_INTERVAL"
+done
 
-// BmcStatus represents the observed state managed exclusively by the asynchronous Reconciliation Controller.
-type BmcStatus struct {
-	Phase       string     `json:"phase" validate:"omitempty,oneof=Pending Reconciling Aligned Failed"`
-	Message     string     `json:"message,omitempty"`
-	LastUpdated *time.Time `json:"lastUpdated,omitempty"`
-}
+if [ "$ALIGNED" = true ]; then
+  ok "Bmc resource successfully transitioned to 'Aligned' phase"
+else
+  fail "Bmc resource did not reach 'Aligned' phase within 30 seconds (Final phase: $PHASE)"
+fi
 
-func (r *Bmc) GetKind() string { return "Bmc" }
-func (r *Bmc) GetName() string { return r.Metadata.Name }
-func (r *Bmc) GetUID() string  { return r.Metadata.UID }
-func (r *Bmc) IsHub()          {}
-EOF
-
-fabrica generate
-
-go mod tidy
-
-cat << 'EOF' > pkg/reconcilers/bmc_reconciler.go
-package reconcilers
-
-import (
-	"context"
-	"fmt"
-	"time"
-
-	v1 "github.com/example/fms-bmc/apis/example.fabrica.dev/v1"
-)
-
-func (r *BmcReconciler) reconcileBmc(ctx context.Context, res *v1.Bmc) error {
-	if res.Status.Phase == "Aligned" {
-		return nil
-	}
-	
-	now := time.Now()
-	res.Status.Phase = "Aligned"
-	res.Status.Message = "Credentials successfully applied via background operation"
-	res.Status.LastUpdated = &now
-	
-	if err := r.Client.Update(ctx, res); err != nil {
-		return fmt.Errorf("failed to update status: %w", err)
-	}
-	
-	r.Logger.Infof("Successfully verified event-driven loop for Bmc %s", res.GetUID())
-	return nil
-}
-EOF
-
-go run ./cmd/server serve --database-url="file:data.db?cache=shared&_fk=1&_busy_timeout=10000" > server.log 2>&1 &
-SERVER_PID=$!
-
-sleep 10
-
-set +e
-
-# Test Phase A: Submit Desired State
-JOB_RESP=$(curl -s -f -X POST http://localhost:8080/bmcs -H "Content-Type: application/json" -d '{"metadata": {"name": "test-bmc-01"}, "spec": {"targetIdentifier": "srv-rack-01-node-A", "targetIp": "192.168.10.50", "currentAuth": {"username": "admin", "password": "old_password"}, "desiredAuth": {"username": "admin", "password": "new_password_123"}}}')
-
-CURL_STATUS=$?
-
-if [ $CURL_STATUS -ne 0 ]; then echo "Failed to connect to the server. Checking logs:"; cat server.log; kill $SERVER_PID 2>/dev/null; exit 1; fi
-
-set -e
-
-JOB_UID=$(echo $JOB_RESP | grep -o '"uid":"[^"]*"' | head -1 | cut -d'"' -f4)
-
-sleep 5
-
-# Test Phase B: Validate Asynchronous Reconciliation
-STATUS_RESP=$(curl -s http://localhost:8080/bmcs/$JOB_UID)
-
-PHASE=$(echo $STATUS_RESP | grep -o '"phase":"[^"]*"' | cut -d'"' -f4)
-
-if [ "$PHASE" = "Aligned" ]; then echo "SUCCESS: The event bus and controller successfully executed the reconciler logic and aligned the state."; else echo "FAILURE: The reconciliation loop did not modify the resource. Phase is: $PHASE"; cat server.log; fi
-
-kill $SERVER_PID
+echo ""
+echo "Test Execution Complete. PASS: $PASS, FAIL: $FAIL"
+if [ "$FAIL" -gt 0 ]; then
+  exit 1
+fi
