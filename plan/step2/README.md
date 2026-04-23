@@ -17,16 +17,20 @@ If resources are hierarchical, use UID string fields to link child resources to 
 
 ### Context
 
-Fabrica uses declarative resources. 
+Fabrica resources strictly separate data into 'Spec' and 'Status'.
+1. Spec: The desired state provided by the user. Must use 'validate' struct tags for input validation.
+2. Status: The observed state managed exclusively by the system's reconciliation loop.
+3. Relationships: Hierarchical resources are linked using UID strings (e.g., a child resource stores its parent's UID in its Spec, and the parent tracks created child UIDs in its Status).
 
 Example Resource Implementation:
 type UserSpec struct {
     Email string `json:"email" validate:"required,email"`
     Role  string `json:"role" validate:"oneof=admin user guest"`
+    ParentTeamUID string `json:"parentTeamUid,omitempty"`
 }
 
 type UserStatus struct {
+    Phase      string     `json:"phase" validate:"oneof=Pending Provisioning Ready Error"`
+    Message    string     `json:"message,omitempty"`
     LastLogin  *time.Time `json:"lastLogin,omitempty"`
-    LoginCount int        `json:"loginCount"`
-    Health     string     `json:"health" validate:"oneof=healthy degraded unhealthy"`
 }

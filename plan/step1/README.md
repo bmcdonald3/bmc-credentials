@@ -14,4 +14,13 @@ Act as a system architect. I am designing a new service. I will describe how a u
 
 ### Context
 
+This service is built using Fabrica, a framework for generating Kubernetes-style declarative APIs. 
+Architecture Overview:
+1. Declarative Design: Users do not trigger imperative actions. Instead, they declare a "Desired State" by creating or updating a JSON resource via a REST API.
+2. Asynchronous Processing: Creating or modifying a resource publishes a CloudEvent (e.g., io.fabrica.resource.created).
+3. Reconciliation Controller: A background worker receives the event, compares the "Current State" of the system to the "Desired State", and executes business logic to align them.
+When analyzing the user's workflow description, you must separate it into two distinct phases: 
+Phase A: What desired state the user submits.
+Phase B: What the background reconciliation loop must do asynchronously to fulfill that state.
+
 [insert service description here]
