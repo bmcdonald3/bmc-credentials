@@ -12,15 +12,17 @@ echo "Starting Bmc resource validation..."
 
 # Phase 1: Create Resource
 # Submits the desired state manifest to the API server.
-CREATE_RESP=$(curl -sf -X POST "$BASE_URL/bmcs" -H "Content-Type: application/json" -d '{"apiVersion":"fabrica.dev/v1","kind":"Bmc","metadata":{"name":"test-bmc-target"},"spec":{"targetIdentifier":"bmc-chassis-A","targetIp":"10.0.0.55","currentAuth":{"username":"admin","password":"old_password"},"desiredAuth":{"username":"admin","password":"new_password"}}}')
+echo "Submitting payload..."
+set +e
+HTTP_STATUS=$(curl -s -o /tmp/create_resp.json -w "%{http_code}" -X POST "$BASE_URL/bmcs" -H "Content-Type: application/json" -d '{"apiVersion":"fabrica.dev/v1","kind":"Bmc","metadata":{"name":"test-bmc-target"},"spec":{"targetIdentifier":"bmc-chassis-A","targetIp":"10.0.0.55","currentAuth":{"username":"admin","password":"old_password"},"desiredAuth":{"username":"admin","password":"new_password"}}}')
+set -e
 
-# Extract UID using python3 to parse the JSON response.
-BMC_UID=$(echo "$CREATE_RESP" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('metadata', {}).get('uid', ''))" 2>/dev/null || echo "")
-
-if [ -n "$BMC_UID" ]; then
+if [ "$HTTP_STATUS" = "201" ] || [ "$HTTP_STATUS" = "200" ]; then
+  BMC_UID=$(cat /tmp/create_resp.json | python3 -c "import sys,json; print(json.load(sys.stdin).get('metadata', {}).get('uid', ''))" 2>/dev/null || echo "")
   ok "Bmc resource created (uid=$BMC_UID)"
 else
-  fail "Bmc resource creation failed"
+  fail "Bmc resource creation failed with HTTP $HTTP_STATUS"
+  cat /tmp/create_resp.json
   exit 1
 fi
 
