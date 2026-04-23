@@ -11,10 +11,10 @@ Any domain-specific rules, formulas, external API endpoints, or hardware interac
 ### Prompt
 
 Design the reconciliation logic for the background operations identified in the workflow. For each resource that requires background processing, document the following:
-1. Triggering condition (e.g., what state change initiates this logic).
-2. Required external interactions or child resource creation.
-3. How to check if the logic has already been applied (idempotency condition).
-4. The terminal states applied to the `Status` field upon success or failure.
+1. Triggering condition: What specific event or state change initiates this logic.
+2. Required external interactions: You MUST define the exact technical implementation. If interacting with an external API, provide the exact HTTP methods, precise URI paths, and the literal JSON payload structures required. Do not generalize (e.g., do not say "make an API call"). If creating child resources, define the exact resource payload.
+3. Idempotency condition: How to fast-path check if the logic has already been applied, and how to deep-check the external system to verify actual state.
+4. Terminal states: The exact string values applied to the `Status` fields upon success or failure, and the progressive states applied during execution.
 
 ### Context
 
