@@ -23,6 +23,8 @@ Fabrica resources strictly separate data into 'Spec' and 'Status'.
 3. Relationships: Hierarchical resources are linked using UID strings (e.g., a child resource stores its parent's UID in its Spec, and the parent tracks created child UIDs in its Status).
 
 Example Resource Implementation:
+
+```go
 type UserSpec struct {
     Email string `json:"email" validate:"required,email"`
     Role  string `json:"role" validate:"oneof=admin user guest"`
@@ -34,3 +36,4 @@ type UserStatus struct {
     Message    string     `json:"message,omitempty"`
     LastLogin  *time.Time `json:"lastLogin,omitempty"`
 }
+```
