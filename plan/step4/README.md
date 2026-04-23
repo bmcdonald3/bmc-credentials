@@ -99,7 +99,7 @@ import (
 	"fmt"
 	v1 "github.com/bmcdonald3/fms/apis/example.fabrica.dev/v1"
 )
-func (r *UpdateJobReconciler) reconcileDeviceProfile(ctx context.Context, res *v1.DeviceProfile) error {
+func (r *DeviceProfileReconciler) reconcileDeviceProfile(ctx context.Context, res *v1.DeviceProfile) error {
 	if res.Status.Phase == "Reconciliation Proved!" {
 		return nil
 	}
