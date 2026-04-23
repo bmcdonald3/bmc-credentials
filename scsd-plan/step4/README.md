@@ -220,7 +220,7 @@ import (
 	v1 "github.com/example/fms-bmc/apis/example.fabrica.dev/v1"
 )
 
-func (r *UpdateJobReconciler) reconcileBmc(ctx context.Context, res *v1.Bmc) error {
+func (r *BmcReconciler) reconcileBmc(ctx context.Context, res *v1.Bmc) error {
 	if res.Status.Phase == "Aligned" {
 		return nil
 	}
