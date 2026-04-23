@@ -10,11 +10,11 @@ Any domain-specific rules, formulas, external API endpoints, or hardware interac
 
 ### Prompt
 
-Design the reconciliation logic for the background operations identified in the workflow. For each resource that requires background processing, document the following:
-1. Triggering condition (e.g., what state change initiates this logic).
-2. Required external interactions or child resource creation.
-3. How to check if the logic has already been applied (idempotency condition).
-4. The terminal states applied to the `Status` field upon success or failure.
+Your task is to design the reconciliation logic for the background operations identified in the workflow. For each resource that requires background processing, document the following:
+1. Triggering condition: What specific event or state change initiates this logic.
+2. Required external interactions: You MUST define the exact technical implementation. If interacting with an external API, provide the exact HTTP methods, precise URI paths, and the literal JSON payload structures required. Do not generalize (e.g., do not say "make an API call"). If creating child resources, define the exact resource payload.
+3. Idempotency condition: How to fast-path check if the logic has already been applied, and how to deep-check the external system to verify actual state.
+4. Terminal states: The exact string values applied to the `Status` fields upon success or failure, and the progressive states applied during execution.
 
 ### Context
 
@@ -25,24 +25,55 @@ The business logic resides in Fabrica Reconcilers. You must design this logic ad
 
 =================
 
-### Reconciliation Logic Design: `Bmc` Resource
+### BMC Reconciliation Logic Design
 
 **1. Triggering Condition**
-The background operation is initiated by the receipt of an asynchronous event from the message broker, specifically the `io.fabrica.bmc.updated` (or corresponding creation) CloudEvent. This event is published by the API server immediately after a user's declarative payload successfully passes schema validation and is persisted as the new desired state in the database. The reconciler consumes this event to begin processing the specific `Bmc` identifier included in the payload.
+The background reconciliation process is initiated when the controller receives the `io.fabrica.bmc.updated` CloudEvent from the message broker, indicating a new or updated `Bmc` resource exists in the database.
 
 **2. Required External Interactions**
-To align the observed state with the user's desired state, the reconciler must perform specific network and storage interactions. No child Kubernetes-style resources are required for this specific workflow.
-* **Database Retrieval:** The reconciler must query the database to retrieve the full `Bmc` object, which contains the unredacted `Spec.CurrentAuth` and `Spec.DesiredAuth` needed for the hardware session.
-* **Hardware Interface Execution:** The controller must establish a connection over the network to the physical BMC's management interface (e.g., using the Redfish API) using the `Spec.CurrentAuth` payload. Once authenticated, the controller must issue the necessary HTTP POST/PATCH requests to mutate the physical hardware's IP address to `Spec.TargetIP` and its authentication database to reflect `Spec.DesiredAuth`.
-* **Storage Client Persistence:** The reconciler must invoke the storage client to save state updates explicitly back to the database at multiple points during the execution lifecycle.
+The reconciler executes two distinct HTTP `PATCH` requests to the physical BMC to align the desired state. 
+
+**Authentication Alignment:**
+* **HTTP Method:** `PATCH`
+* **URI Path:** `/redfish/v1/AccountService/Accounts/1`
+* **JSON Payload:**
+    ```json
+    {
+      "UserName": "<Bmc.Spec.DesiredAuth.Username>",
+      "Password": "<Bmc.Spec.DesiredAuth.Password>",
+      "Enabled": true,
+      "RoleId": "Administrator"
+    }
+    ```
+    *(Note: The `Enabled` and `RoleId` fields are mandatory to ensure the applied credentials can actually interact with the API, as the default state for `Accounts/1` was shown as disabled with `NoAccess`.)*
+
+**Network Interface Alignment:**
+* **HTTP Method:** `PATCH`
+* **URI Path:** `/redfish/v1/Managers/BMC/EthernetInterfaces/1`
+* **JSON Payload:**
+    ```json
+    {
+      "DHCPv4": {
+        "DHCPEnabled": false
+      },
+      "IPv4StaticAddresses": [
+        {
+          "Address": "<Bmc.Spec.TargetIP>"
+        }
+      ]
+    }
+    ```
+    *(Note: The Redfish spec often requires `SubnetMask` and `Gateway` to be submitted alongside `Address` within the `IPv4StaticAddresses` array. The reconciler must extract the current `SubnetMask` and `Gateway` from the existing `IPv4Addresses` array during the idempotency check and inject them into this payload.)*
 
 **3. Idempotency Condition**
-The reconciler must ensure safe execution even if the `io.fabrica.bmc.updated` event is delivered multiple times for the same payload.
-* **Fast-Path State Check:** Immediately after fetching the `Bmc` object from the database, the reconciler must inspect `Status.Phase`. If the value is strictly `"Aligned"`, the desired state has already been achieved by a previous execution, and the function must return immediately without initiating any network connections to the hardware.
-* **Hardware Verification (Deep Idempotency):** If the phase is not `"Aligned"`, the reconciler should verify the actual state of the hardware before mutating it. The system should attempt to authenticate against `Spec.TargetIP` using `Spec.DesiredAuth`. If this connection succeeds, it proves the hardware is already properly configured, allowing the reconciler to bypass the mutation steps, update the phase to `"Aligned"`, and persist the status.
+* **Fast-Path Check:** Upon invocation, evaluate `Bmc.Status.Phase` in the database. If the value is exactly `Aligned`, the reconciler terminates immediately without executing any network calls.
+* **Deep-Check Verification:** 1. Issue an HTTP `GET` request to `/redfish/v1/Managers/BMC/EthernetInterfaces/1` using the credentials specified in `Bmc.Spec.DesiredAuth`. 
+    2. If the BMC returns HTTP `401 Unauthorized`, the authentication state is unaligned. Proceed to the Authentication Alignment interaction using `Bmc.Spec.CurrentAuth` to gain access.
+    3. If the BMC returns HTTP `200 OK`, the authentication state is aligned. Parse the JSON response body.
+    4. Iterate over the `IPv4Addresses` array in the response. If any `Address` field perfectly matches `Bmc.Spec.TargetIP`, the external system is already in the desired state. Update the database to reflect `Aligned` and terminate. If no match is found, proceed to the Network Interface Alignment interaction.
 
-**4. Terminal States and Progressive Updates**
-The reconciler must rigorously manage the `Status` sub-resource to provide accurate operational visibility and adhere to the progressive update constraints.
-* **Progressive Update:** After clearing the idempotency checks and before establishing the connection to the physical hardware, the reconciler must update `Status.Phase` to `"Reconciling"` and set `Status.LastUpdated` to the current timestamp. This intermediate state must be explicitly saved via the storage client before proceeding to the long-running hardware tasks.
-* **Terminal State (Success):** Following a successful `200 OK` or `204 No Content` response from the physical BMC confirming the application of the new IP and credentials, the reconciler must update `Status.Phase` to `"Aligned"`. Any previous error text in `Status.Message` must be cleared, `Status.LastUpdated` must be updated, and the record must be explicitly saved via the storage client.
-* **Terminal State (Failure):** If the reconciler encounters a failure condition—such as a network timeout when reaching the BMC, a `401 Unauthorized` when using `Spec.CurrentAuth`, or a `400 Bad Request` during the application of the new configuration—the operation is halted. The reconciler must update `Status.Phase` to `"Failed"`. The `Status.Message` field must be populated with the concrete error string returned by the hardware or network stack, `Status.LastUpdated` must be updated, and the resulting object must be explicitly saved via the storage client.
+**4. Progressive and Terminal States**
+Every status update requires an immediate write operation to the storage client before proceeding to the next step.
+* **Progressive State:** Prior to initiating the Deep-Check Verification, update `Status.Phase` to `Reconciling` and record the current timestamp in `Status.LastUpdated`.
+* **Terminal State (Success):** Once both the credentials and network modifications return HTTP `200 OK` or `204 No Content` from the `PATCH` operations (or if the deep-check proves no modifications are necessary), update `Status.Phase` to `Aligned`, write an empty string to `Status.Message`, and update `Status.LastUpdated`.
+* **Terminal State (Failure):** If the initial connection times out, if `CurrentAuth` fails during the initial connection attempt, or if a `PATCH` request returns an error (e.g., HTTP `400 Bad Request` or `500 Internal Server Error`), update `Status.Phase` to `Failed`, write the exact HTTP status code and response body string to `Status.Message`, and update `Status.LastUpdated`.
