@@ -10,7 +10,7 @@ The defined resource models from step 2.
 
 ### Prompt
 
-Write a validation bash script using `curl` to simulate the user workflow. The script must create the necessary resources by sending POST requests and then verify that the system processes them by checking their `status` fields. Use the provided sample validation script as a reference for formatting. 
+Write a validation bash script using `curl` to simulate the user workflow. The script must create the necessary resources by sending POST requests and then verify that the system processes them by checking their `status` fields. Crucially, the script MUST then perform an external validation step: it must issue direct `curl` commands against the external system (e.g., the hardware or third-party API) to functionally prove that the side-effects were actually applied.
 
 Constraint: You must wrap the resource creation `curl` commands with `set +e` and `set -e` to prevent the script from aborting on failure. You must capture the HTTP status code and print the full JSON response if the creation fails to assist with debugging.
 
