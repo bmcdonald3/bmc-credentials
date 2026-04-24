@@ -12,6 +12,8 @@ The defined resource models from step 2.
 
 Write a validation bash script using `curl` to simulate the user workflow. The script must create the necessary resources by sending POST requests and then verify that the system processes them by checking their `status` fields. Crucially, the script MUST then perform an external validation step: it must issue direct `curl` commands against the external system (e.g., the hardware or third-party API) to functionally prove that the side-effects were actually applied.
 
+Constraint: The execution environment does not have network access to the physical hardware. Do not attempt external hardware validation. The script must validate that the Fabrica server compiles, starts, accepts the resource payload, and that the reconciliation controller attempts the background process. 
+Constraint: Because the hardware is unreachable, the script must assert that the 'status.phase' eventually transitions to 'Failed' and that 'status.message' contains a network timeout or connection refused error. This will prove the network logic was implemented.
 Constraint: You must wrap the resource creation `curl` commands with `set +e` and `set -e` to prevent the script from aborting on failure. You must capture the HTTP status code and print the full JSON response if the creation fails to assist with debugging.
 
 ### Context
